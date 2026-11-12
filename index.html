@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Valley | Applications</title>
+<meta name="theme-color" content="#081426">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{color-scheme:dark;--bg:#071222;--panel:#0d1d33;--panel2:#102641;--line:#203956;--blue:#4d9cff;--text:#edf4ff;--muted:#9db0c9;--green:#49d7a0;--red:#ff727c}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#17365c 0,transparent 55%),var(--bg);color:var(--text);font:15px/1.55 Inter,system-ui,Segoe UI,sans-serif;min-height:100vh}
+button,input,textarea,select{font:inherit}button{cursor:pointer;border:1px solid transparent;border-radius:10px;padding:10px 15px;background:var(--blue);color:#061426;font-weight:750}button.secondary{background:#142a44;border-color:var(--line);color:var(--text)}button.danger{background:#4b202b;color:#ffdce0;border-color:#773542}button:disabled{opacity:.45;cursor:not-allowed}
+header{height:72px;border-bottom:1px solid #20334b;background:#081426d9;backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;padding:0 max(22px,calc((100vw - 1120px)/2));position:sticky;top:0;z-index:5}
+.brand{font-size:17px;font-weight:900;letter-spacing:2px}.brand span{color:var(--blue)}.userbox{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px}
+main{max-width:1050px;margin:42px auto;padding:0 22px}.hero{padding:38px 0 25px}.eyebrow{color:#72b4ff;text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:800}.hero h1{font-size:clamp(32px,5vw,48px);line-height:1.08;margin:10px 0}.hero p{color:var(--muted);max-width:660px;margin:0}
+.panel{background:linear-gradient(145deg,#10233b,#0b192c);border:1px solid var(--line);border-radius:17px;padding:23px;margin:18px 0;box-shadow:0 18px 55px #0002}.tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:20px}.tabs button{background:transparent;color:var(--muted);border-color:transparent}.tabs button.active{background:#17365b;color:#fff;border-color:#2b5685}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}.dept{background:#0c1b2e;border:1px solid var(--line);border-radius:13px;padding:18px}.dept h3{margin:0 0 5px}.dept p{color:var(--muted);font-size:13px;min-height:42px}.dept button{width:100%}
+.field{display:grid;gap:7px;margin:15px 0}.field label{font-weight:700;font-size:13px}.field input,.field textarea,.field select{width:100%;background:#071426;border:1px solid #29415f;color:var(--text);border-radius:9px;padding:11px 12px;outline:none}.field input:focus,.field textarea:focus{border-color:var(--blue)}textarea{min-height:110px;resize:vertical}
+.card{background:#0a192b;border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}.cardtop{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.muted{color:var(--muted)}.status{font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:800;border-radius:30px;padding:5px 9px;background:#26364c;color:#c8dcf5}.status.approved{background:#123d34;color:#8ff0c7}.status.denied{background:#48232b;color:#ffb6be}.status.changes_requested{background:#4a3b1d;color:#ffdf8c}
+.hidden{display:none!important}.empty{text-align:center;padding:28px;color:var(--muted)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.notice{padding:12px 14px;border-radius:10px;background:#142a44;border:1px solid #294b70;color:#c9e1ff;margin:12px 0}.error{background:#3c1d29;border-color:#703443;color:#ffd5db}.success{background:#12382f;border-color:#23634f;color:#a9f2d5}
+.small{font-size:12px;color:var(--muted)}.answers{white-space:pre-wrap;color:#dce8f8;margin-top:12px}.sectionhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+@media(max-width:600px){header{padding:0 16px}.userbox span{display:none}main{margin:20px auto;padding:0 14px}.panel{padding:16px}.hero{padding-top:24px}}
+</style>
+</head>
+<body>
+<header><div class="brand">THE <span>VALLEY</span> <span style="color:#dce9fa">/ APPLICATIONS</span></div><div class="userbox"><span id="user-label">Not signed in</span><button id="login-btn">Discord Login</button><button id="logout-btn" class="secondary hidden">Sign out</button></div></header>
+<main>
+<section class="hero"><div class="eyebrow">The Valley Roleplay</div><h1>Your next chapter<br>starts here.</h1><p>Submit an application, keep track of its progress, and access department reviews through one central portal.</p></section>
+<div id="message" class="notice hidden"></div>
+<section id="signed-out" class="panel"><h2>Welcome to The Valley</h2><p class="muted">Sign in with Discord to submit applications and view your application history.</p><button id="hero-login">Continue with Discord</button></section>
+<section id="portal" class="panel hidden">
+<nav class="tabs" id="tabs"><button class="active" data-tab="apply">Applications</button><button data-tab="mine">My submissions</button><button data-tab="review" id="review-tab" class="hidden">Review queue</button><button data-tab="roles" id="roles-tab" class="hidden">Role access</button><button data-tab="forms" id="forms-tab" class="hidden">Form settings</button></nav>
+<div id="tab-apply"><div class="sectionhead"><div><h2>Choose an application</h2><p class="muted">Select the department you'd like to apply to.</p></div></div><div class="grid" id="departments"></div><div id="application-form" class="hidden"></div></div>
+<div id="tab-mine" class="hidden"><h2>My submissions</h2><div id="my-applications"></div></div>
+<div id="tab-review" class="hidden"><div class="sectionhead"><div><h2>Review queue</h2><p class="muted">Applications you are authorized to review.</p></div><button class="secondary" id="refresh-review">Refresh</button></div><div id="review-list"></div></div>
+<div id="tab-roles" class="hidden"><h2>Role access</h2><p class="muted">Assign multiple staff and department roles to the same Discord account.</p><div class="field"><label>Find a member by display name or character name</label><input id="member-search" placeholder="Search profiles..."></div><button id="search-member">Search members</button><div id="member-results"></div></div>
+<div id="tab-forms" class="hidden"><h2>Application form settings</h2><p class="muted">Management and above can edit the questions and open/close applications. Department heads currently review submissions, not edit forms.</p><div class="field"><label>Department</label><select id="form-department"><option value="staff">Staff</option><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select></div><div class="field"><label>Form title</label><input id="form-title"></div><div class="field"><label>Description</label><textarea id="form-description"></textarea></div><div class="field"><label>Questions (one per line, format: key | Question label | text or textarea)</label><textarea id="form-questions"></textarea></div><label><input type="checkbox" id="form-open" checked> Applications are open</label><div class="actions"><button id="save-form">Save form settings</button></div></div>
+</section>
+<footer class="small" style="text-align:center;padding:25px 0 45px">THE VALLEY ROLEPLAY · APPLICATION PORTAL</footer>
+</main>
+<script>
+const SUPABASE_URL='https://bqibeyeltgijvjghtnve.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_Pb8W_qAqJPTCKV_cnoqgXg_aP_9fgXt';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let currentUser=null,myRoles=[],forms={},selectedDepartment=null,applications=[];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const title=s=>({staff:'Staff',lspd:'LSPD',ems:'EMS',doj:'DOJ'}[s]||s);
+function msg(text,error=false){$('message').textContent=text;$('message').className='notice '+(error?'error':'success');$('message').classList.remove('hidden');}
+function clearMsg(){$('message').classList.add('hidden')}
+function has(scope,role){return myRoles.some(r=>r.scope===scope&&r.role_key===role)||myRoles.some(r=>r.scope==='system'&&r.role_key==='super_owner')}
+function isSuper(){return has('system','super_owner')}
+function canReview(dept){if(isSuper())return true;if(dept==='staff')return ['staff_owner','director','assistant_director','management'].some(r=>has('staff',r));return ['department_head','command_team','application_reviewer'].some(r=>has(dept,r))}
+function canEditForms(){return isSuper()||['staff_owner','director','assistant_director','management'].some(r=>has('staff',r))}
+function tab(name){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));['apply','mine','review','roles','forms'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='mine')loadMine();if(name==='review')loadReview();if(name==='forms')loadFormEditor()}
+async function refresh(){
+ const {data:{session}}=await sb.auth.getSession();currentUser=session?.user||null;
+ $('signed-out').classList.toggle('hidden',!!currentUser);$('portal').classList.toggle('hidden',!currentUser);
+ $('login-btn').classList.toggle('hidden',!!currentUser);$('logout-btn').classList.toggle('hidden',!currentUser);
+ $('user-label').textContent=currentUser?(currentUser.user_metadata?.full_name||currentUser.user_metadata?.name||currentUser.email||'Signed in'):'Not signed in';
+ if(!currentUser)return;
+ const {data:roles,error}=await sb.rpc('valley_get_my_roles');if(error){msg(error.message,true);return}myRoles=roles||[];
+ $('review-tab').classList.toggle('hidden',!['staff','lspd','ems','doj'].some(canReview));
+ $('roles-tab').classList.toggle('hidden',!isSuper());$('forms-tab').classList.toggle('hidden',!canEditForms());
+ await loadForms();await loadMine();
+}
+async function login(){const {error}=await sb.auth.signInWithOAuth({provider:'discord',options:{redirectTo:location.href.split('#')[0]}});if(error)msg(error.message,true)}
+$('login-btn').onclick=login;$('hero-login').onclick=login;
+$('logout-btn').onclick=async()=>{await sb.auth.signOut();location.reload()};
+document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',()=>tab(b.dataset.tab)));
+sb.auth.onAuthStateChange(()=>setTimeout(refresh,0));
+async function loadForms(){const {data,error}=await sb.from('valley_application_forms').select('*');if(error){msg(error.message,true);return}forms=Object.fromEntries((data||[]).map(f=>[f.department,f]));renderDepartments()}
+function renderDepartments(){
+ const desc={staff:'Join the team that helps manage and support the community.',lspd:'Serve the city through law enforcement and public safety.',ems:'Help keep the city safe through emergency medical services.',doj:'Support the justice system and uphold fair roleplay.'};
+ $('departments').innerHTML=['staff','lspd','ems','doj'].map(d=>{const f=forms[d]||{};return '<article class="dept"><h3>'+title(d)+'</h3><p>'+esc(f.description||desc[d])+'</p><button '+(!f.is_open?'disabled':'')+' data-dept="'+d+'">'+(f.is_open?'Start application':'Applications closed')+'</button></article>'}).join('');
+ document.querySelectorAll('[data-dept]').forEach(b=>b.onclick=()=>showApplication(b.dataset.dept));
+}
+async function showApplication(dept){
+ selectedDepartment=dept;const f=forms[dept];if(!f||!f.is_open)return;
+ const {data:existing}=await sb.from('valley_applications').select('id').eq('department',dept).in('status',['pending','under_review','changes_requested']).limit(1);
+ if(existing?.length){msg('You already have an active '+title(dept)+' application.',true);return}
+ $('application-form').classList.remove('hidden');
+ $('application-form').innerHTML='<div class="card"><h2>'+esc(f.title)+'</h2><p class="muted">'+esc(f.description)+'</p><form id="submit-form">'+(f.questions||[]).map(q=>'<div class="field"><label>'+esc(q.label)+(q.required?' *':'')+'</label>'+(q.type==='textarea'?'<textarea name="'+esc(q.key)+'" '+(q.required?'required':'')+'></textarea>':'<input name="'+esc(q.key)+'" type="text" '+(q.required?'required':'')+'>')+'</div>').join('')+'<div class="actions"><button type="submit">Submit application</button><button type="button" class="secondary" id="cancel-form">Cancel</button></div></form></div>';
+ $('cancel-form').onclick=()=>{$('application-form').classList.add('hidden')};
+ $('submit-form').onsubmit=async e=>{e.preventDefault();const answers=Object.fromEntries(new FormData(e.target).entries());const {error}=await sb.rpc('valley_submit_application',{p_department:dept,p_answers:answers});if(error){msg(error.message,true);return}msg(title(dept)+' application submitted successfully.');$('application-form').classList.add('hidden');await loadMine();tab('mine')};
+ $('application-form').scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function loadMine(){
+ const {data,error}=await sb.from('valley_applications').select('*').order('created_at',{ascending:false});if(error){msg(error.message,true);return}
+ applications=data||[];const mine=applications.filter(a=>a.applicant_id===currentUser.id);
+ $('my-applications').innerHTML=mine.length?mine.map(applicationCard).join(''):'<div class="empty">You have not submitted any applications yet.</div>';
+}
+function applicationCard(a){return '<article class="card"><div class="cardtop"><div><strong>'+title(a.department)+' application</strong><div class="small">'+new Date(a.created_at).toLocaleString()+'</div></div><span class="status '+a.status+'">'+a.status.replace('_',' ')+'</span></div>'+(a.review_notes?'<p class="muted">Reviewer notes: '+esc(a.review_notes)+'</p>':'')+'</article>'}
+async function loadReview(){
+ const {data,error}=await sb.from('valley_applications').select('*').order('created_at',{ascending:false});if(error){msg(error.message,true);return}
+ const rows=(data||[]).filter(a=>canReview(a.department));
+ $('review-list').innerHTML=rows.length?rows.map(a=>'<article class="card"><div class="cardtop"><div><strong>'+title(a.department)+' application</strong><div class="small">Submitted '+new Date(a.created_at).toLocaleString()+'</div><div class="small">Applicant ID: '+esc(a.applicant_id)+'</div></div><span class="status '+a.status+'">'+a.status.replace('_',' ')+'</span></div><div class="answers">'+Object.entries(a.answers||{}).map(([k,v])=>'<b>'+esc(k.replaceAll('_',' '))+':</b> '+esc(v)).join('\n')+'</div><div class="field"><label>Review notes</label><textarea id="notes-'+a.id+'">'+esc(a.review_notes||'')+'</textarea></div><div class="actions"><button data-review="'+a.id+'" data-status="under_review" class="secondary">Mark reviewing</button><button data-review="'+a.id+'" data-status="changes_requested" class="secondary">Request changes</button><button data-review="'+a.id+'" data-status="approved">Approve</button><button data-review="'+a.id+'" data-status="denied" class="danger">Deny</button></div></article>').join(''):'<div class="empty">No applications are available in your review queue.</div>';
+ document.querySelectorAll('[data-review]').forEach(b=>b.onclick=async()=>{const {error}=await sb.rpc('valley_review_application',{p_application_id:b.dataset.review,p_status:b.dataset.status,p_notes:$('notes-'+b.dataset.review).value});if(error){msg(error.message,true);return}msg('Application review saved.');loadReview()});
+}
+$('refresh-review').onclick=loadReview;
+$('search-member').onclick=async()=>{
+ if(!isSuper())return;const q=$('member-search').value.trim();if(!q){msg('Enter a name to search.',true);return}
+ const {data,error}=await sb.rpc('valley_search_profiles',{p_query:q});if(error){msg(error.message,true);return}
+ $('member-results').innerHTML=(data||[]).length?(data||[]).map(p=>'<article class="card"><strong>'+esc(p.display_name||p.character_name||'Member')+'</strong><div class="small">'+esc(p.character_name||'')+' · '+esc(p.id)+'</div><div class="actions"><select id="scope-'+p.id+'"><option value="staff">Staff</option><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select><select id="role-'+p.id+'"></select><button data-assign="'+p.id+'">Assign role</button></div><div class="small">Existing roles: '+esc((p.roles||[]).join(', ')||'None')+'</div></article>').join(''):'<div class="empty">No matching profiles found.</div>';
+ (data||[]).forEach(p=>{const s=$('scope-'+p.id),r=$('role-'+p.id);function options(){r.innerHTML=(s.value==='staff'?[['staff_owner','Staff Owner'],['director','Director'],['assistant_director','Assistant Director'],['management','Management'],['senior_admin','Senior Admin'],['admin','Admin']]:[['department_head','Department Head'],['command_team','Command Team'],['application_reviewer','Application Reviewer'],['member','Member']]).map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')}s.onchange=options;options()});
+ document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{const id=b.dataset.assign;const {error}=await sb.rpc('valley_assign_application_role',{p_user_id:id,p_scope:$('scope-'+id).value,p_role_key:$('role-'+id).value});if(error){msg(error.message,true);return}msg('Role assigned and logged.');$('search-member').click()});
+};
+async function loadFormEditor(){const dept=$('form-department').value;const f=forms[dept];if(!f)return;$('form-title').value=f.title;$('form-description').value=f.description;$('form-open').checked=f.is_open;$('form-questions').value=(f.questions||[]).map(q=>[q.key,q.label,q.type].join(' | ')).join('\n')}
+$('form-department').onchange=loadFormEditor;
+$('save-form').onclick=async()=>{const dept=$('form-department').value;const questions=$('form-questions').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const [key,label,type='text']=line.split('|').map(s=>s.trim());return {key,label,type:type==='textarea'?'textarea':'text',required:true}});const {error}=await sb.rpc('valley_save_application_form',{p_department:dept,p_title:$('form-title').value,p_description:$('form-description').value,p_questions:questions,p_is_open:$('form-open').checked});if(error){msg(error.message,true);return}msg('Application form saved.');await loadForms();loadFormEditor()};
+refresh();
+</script>
+</body></html>
