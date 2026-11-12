@@ -18,6 +18,11 @@ create table if not exists public.valley_application_roles (
     (scope in ('lspd','ems','doj') and role_key in ('department_head','command_team','application_reviewer','member'))
   )
 );
+alter table public.valley_application_roles
+  add column if not exists assigned_by uuid references auth.users(id) on delete set null;
+alter table public.valley_application_roles
+  add column if not exists created_at timestamptz not null default now();
+
 create index if not exists valley_application_roles_user_idx on public.valley_application_roles(user_id);
 
 -- Carry forward the existing single staff rank into the new multi-role model.
