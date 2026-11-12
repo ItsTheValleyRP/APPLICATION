@@ -170,6 +170,8 @@ begin
 end;
 $$;
 
+drop function if exists public.valley_save_application_form(text,text,text,jsonb,boolean);
+
 create or replace function public.valley_save_application_form(
   p_department text,p_title text,p_description text,p_questions jsonb,p_is_open boolean
 )
