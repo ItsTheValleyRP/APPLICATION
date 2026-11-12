@@ -119,6 +119,8 @@ returns boolean language sql stable security definer set search_path=public,pg_t
     else false end;
 $$;
 
+drop function if exists public.valley_get_my_roles();
+
 create or replace function public.valley_get_my_roles()
 returns table(scope text,role_key text)
 language plpgsql stable security definer set search_path=public,pg_temp as $$
