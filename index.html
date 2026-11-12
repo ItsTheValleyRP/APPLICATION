@@ -33,7 +33,7 @@ main{max-width:1050px;margin:42px auto;padding:0 22px}.hero{padding:38px 0 25px}
 <div id="tab-mine" class="hidden"><h2>My submissions</h2><div id="my-applications"></div></div>
 <div id="tab-review" class="hidden"><div class="sectionhead"><div><h2>Review queue</h2><p class="muted">Applications you are authorized to review.</p></div><button class="secondary" id="refresh-review">Refresh</button></div><div id="review-list"></div></div>
 <div id="tab-roles" class="hidden"><h2>Role access</h2><p class="muted">Assign multiple staff and department roles to the same Discord account.</p><div class="field"><label>Find a member by display name or character name</label><input id="member-search" placeholder="Search profiles..."></div><button id="search-member">Search members</button><div id="member-results"></div></div>
-<div id="tab-forms" class="hidden"><h2>Application form settings</h2><p class="muted">Management and above can edit the questions and open/close applications. Department heads currently review submissions, not edit forms.</p><div class="field"><label>Department</label><select id="form-department"><option value="staff">Staff</option><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select></div><div class="field"><label>Form title</label><input id="form-title"></div><div class="field"><label>Description</label><textarea id="form-description"></textarea></div><div class="field"><label>Questions (one per line, format: key | Question label | text or textarea)</label><textarea id="form-questions"></textarea></div><label><input type="checkbox" id="form-open" checked> Applications are open</label><div class="actions"><button id="save-form">Save form settings</button></div></div>
+<div id="tab-forms" class="hidden"><h2>Application form settings</h2><p class="muted">Management and above can edit the questions and open/close applications. Department heads currently review submissions, not edit forms.</p><div class="field"><label>Department</label><select id="form-department"><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select></div><div class="field"><label>Form title</label><input id="form-title"></div><div class="field"><label>Description</label><textarea id="form-description"></textarea></div><div class="field"><label>Questions (one per line, format: key | Question label | text or textarea)</label><textarea id="form-questions"></textarea></div><label><input type="checkbox" id="form-open" checked> Applications are open</label><div class="actions"><button id="save-form">Save form settings</button></div></div>
 </section>
 <footer class="small" style="text-align:center;padding:25px 0 45px">THE VALLEY ROLEPLAY · APPLICATION PORTAL</footer>
 </main>
@@ -49,7 +49,7 @@ function msg(text,error=false){$('message').textContent=text;$('message').classN
 function clearMsg(){$('message').classList.add('hidden')}
 function has(scope,role){return myRoles.some(r=>r.scope===scope&&r.role_key===role)||myRoles.some(r=>r.scope==='system'&&r.role_key==='super_owner')}
 function isSuper(){return has('system','super_owner')}
-function canReview(dept){if(isSuper())return true;if(dept==='staff')return ['staff_owner','director','assistant_director','management'].some(r=>has('staff',r));return ['department_head','command_team','application_reviewer'].some(r=>has(dept,r))}
+function canReview(dept){if(!['lspd','ems','doj'].includes(dept))return false;if(isSuper())return true;return ['department_head','command_team','application_reviewer'].some(r=>has(dept,r))}
 function canEditForms(){return isSuper()||['staff_owner','director','assistant_director','management'].some(r=>has('staff',r))}
 function tab(name){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));['apply','mine','review','roles','forms'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='mine')loadMine();if(name==='review')loadReview();if(name==='forms')loadFormEditor()}
 async function refresh(){
@@ -59,7 +59,7 @@ async function refresh(){
  $('user-label').textContent=currentUser?(currentUser.user_metadata?.full_name||currentUser.user_metadata?.name||currentUser.email||'Signed in'):'Not signed in';
  if(!currentUser)return;
  const {data:roles,error}=await sb.rpc('valley_portal_get_my_roles');if(error){msg(error.message,true);return}myRoles=roles||[];
- $('review-tab').classList.toggle('hidden',!['staff','lspd','ems','doj'].some(canReview));
+ $('review-tab').classList.toggle('hidden',!['lspd','ems','doj'].some(canReview));
  $('roles-tab').classList.toggle('hidden',!isSuper());$('forms-tab').classList.toggle('hidden',!canEditForms());
  await loadForms();await loadMine();
 }
@@ -70,8 +70,8 @@ document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',
 sb.auth.onAuthStateChange(()=>setTimeout(refresh,0));
 async function loadForms(){const {data,error}=await sb.from('valley_application_forms').select('*');if(error){msg(error.message,true);return}forms=Object.fromEntries((data||[]).map(f=>[f.department,f]));renderDepartments()}
 function renderDepartments(){
- const desc={staff:'Join the team that helps manage and support the community.',lspd:'Serve the city through law enforcement and public safety.',ems:'Help keep the city safe through emergency medical services.',doj:'Support the justice system and uphold fair roleplay.'};
- $('departments').innerHTML=['staff','lspd','ems','doj'].map(d=>{const f=forms[d]||{};return '<article class="dept"><h3>'+title(d)+'</h3><p>'+esc(f.description||desc[d])+'</p><button '+(!f.is_open?'disabled':'')+' data-dept="'+d+'">'+(f.is_open?'Start application':'Applications closed')+'</button></article>'}).join('');
+ const desc={lspd:'Serve the city through law enforcement and public safety.',ems:'Help keep the city safe through emergency medical services.',doj:'Support the justice system and uphold fair roleplay.'};
+ $('departments').innerHTML=['lspd','ems','doj'].map(d=>{const f=forms[d]||{};return '<article class="dept"><h3>'+title(d)+'</h3><p>'+esc(f.description||desc[d])+'</p><button '+(!f.is_open?'disabled':'')+' data-dept="'+d+'">'+(f.is_open?'Start application':'Applications closed')+'</button></article>'}).join('');
  document.querySelectorAll('[data-dept]').forEach(b=>b.onclick=()=>showApplication(b.dataset.dept));
 }
 async function showApplication(dept){
