@@ -264,7 +264,7 @@ revoke all on function public.valley_list_member_roles(uuid) from public,anon;
 revoke all on function public.valley_assign_application_role(uuid,text,text) from public,anon;
 revoke all on function public.valley_remove_application_role(uuid,text,text) from public,anon;
 
-grant execute on function public.valley_get_my_roles() to authenticated;
+grant execute on function public.valley_can_review_department(text) to authenticated;\ngrant execute on function public.valley_get_my_roles() to authenticated;
 grant execute on function public.valley_submit_application(text,jsonb) to authenticated;
 grant execute on function public.valley_review_application(uuid,text,text) to authenticated;
 grant execute on function public.valley_save_application_form(text,text,text,jsonb,boolean) to authenticated;
