@@ -1,77 +1,72 @@
--- THE VALLEY | Applications + multi-role foundation
--- Run this in the EXISTING VALLEY Supabase project's SQL Editor.
--- This is additive: it does not replace profiles, auth, announcements, or website settings.
+-- THE VALLEY | Applications portal + multi-role permissions
+-- Additive migration for the existing VALLEY Supabase project.
+-- Matches the current APPLICATION/index.html frontend.
+-- Run once in Supabase SQL Editor. Does not replace website/auth tables.
 
 begin;
 
-create table if not exists public.valley_role_catalog (
-  role_code text primary key,
-  label text not null,
-  department text not null,
-  sort_order integer not null default 100,
-  active boolean not null default true
-);
-
-insert into public.valley_role_catalog(role_code,label,department,sort_order) values
- ('staff:owner','Staff Owner','Staff',10),
- ('staff:director','Director','Staff',20),
- ('staff:assistant_director','Assistant Director','Staff',30),
- ('staff:management','Management','Staff',40),
- ('staff:senior_admin','Senior Admin','Staff',50),
- ('staff:admin','Admin','Staff',60),
- ('lspd:department_head','LSPD Department Head','LSPD',10),
- ('lspd:command','LSPD Command Team','LSPD',20),
- ('lspd:member','LSPD Member','LSPD',30),
- ('ems:department_head','EMS Department Head','EMS',10),
- ('ems:command','EMS Command Team','EMS',20),
- ('ems:member','EMS Member','EMS',30),
- ('doj:department_head','DOJ Department Head','DOJ',10),
- ('doj:command','DOJ Command Team','DOJ',20),
- ('doj:member','DOJ Member','DOJ',30),
- ('applications:reviewer','Application Reviewer','Applications',90)
-on conflict(role_code) do update set label=excluded.label,department=excluded.department,sort_order=excluded.sort_order,active=true;
-
-create table if not exists public.valley_member_roles (
+create table if not exists public.valley_application_roles (
   user_id uuid not null references auth.users(id) on delete cascade,
-  role_code text not null references public.valley_role_catalog(role_code),
+  scope text not null check (scope in ('system','staff','lspd','ems','doj')),
+  role_key text not null,
   assigned_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
-  primary key(user_id,role_code)
+  primary key(user_id,scope,role_key),
+  check (
+    (scope='system' and role_key='super_owner') or
+    (scope='staff' and role_key in ('staff_owner','director','assistant_director','management','senior_admin','admin')) or
+    (scope in ('lspd','ems','doj') and role_key in ('department_head','command_team','application_reviewer','member'))
+  )
 );
-create index if not exists valley_member_roles_user_idx on public.valley_member_roles(user_id);
+create index if not exists valley_application_roles_user_idx on public.valley_application_roles(user_id);
 
--- Copy existing single staff ranks into the new multi-role system without deleting the old records.
-insert into public.valley_member_roles(user_id,role_code,assigned_by)
-select user_id,
+-- Carry forward the existing single staff rank into the new multi-role model.
+insert into public.valley_application_roles(user_id,scope,role_key,assigned_by)
+select user_id,'staff',
   case rank
-    when 'Staff Owner' then 'staff:owner'
-    when 'Director' then 'staff:director'
-    when 'Assistant Director' then 'staff:assistant_director'
-    when 'Management' then 'staff:management'
-    when 'Senior Admin' then 'staff:senior_admin'
-    when 'Admin' then 'staff:admin'
-    else null
+    when 'Staff Owner' then 'staff_owner'
+    when 'Director' then 'director'
+    when 'Assistant Director' then 'assistant_director'
+    when 'Management' then 'management'
+    when 'Senior Admin' then 'senior_admin'
+    when 'Admin' then 'admin'
   end,
   assigned_by
 from public.valley_staff_roles
 where rank in ('Staff Owner','Director','Assistant Director','Management','Senior Admin','Admin')
-on conflict(user_id,role_code) do nothing;
+on conflict(user_id,scope,role_key) do nothing;
+
+create table if not exists public.valley_application_forms (
+  department text primary key check(department in ('staff','lspd','ems','doj')),
+  title text not null,
+  description text not null default '',
+  questions jsonb not null default '[]'::jsonb,
+  is_open boolean not null default true,
+  updated_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.valley_application_forms(department,title,description,questions,is_open) values
+('staff','VALLEY Staff Application','Apply to help lead and support The Valley Roleplay community.', '[{"key":"motivation","label":"Why do you want to join the VALLEY Staff Team?","type":"textarea","required":true},{"key":"experience","label":"Describe any previous staff or leadership experience.","type":"textarea","required":true},{"key":"availability","label":"What is your usual availability?","type":"text","required":true},{"key":"scenario","label":"A member reports another player for breaking server rules. How would you handle the situation fairly?","type":"textarea","required":true}]'::jsonb,true),
+('lspd','LSPD Application','Apply to serve the city through law enforcement roleplay.', '[{"key":"motivation","label":"Why do you want to join LSPD?","type":"textarea","required":true},{"key":"experience","label":"Describe your previous law-enforcement or leadership roleplay experience.","type":"textarea","required":true},{"key":"availability","label":"What is your usual availability?","type":"text","required":true},{"key":"scenario","label":"How would you handle a situation where another officer is escalating an interaction unnecessarily?","type":"textarea","required":true}]'::jsonb,true),
+('ems','EMS Application','Apply to support the city through emergency medical roleplay.', '[{"key":"motivation","label":"Why do you want to join EMS?","type":"textarea","required":true},{"key":"experience","label":"Describe any previous EMS or medical roleplay experience.","type":"textarea","required":true},{"key":"availability","label":"What is your usual availability?","type":"text","required":true},{"key":"scenario","label":"How would you respond to a busy scene where several people need assistance?","type":"textarea","required":true}]'::jsonb,true),
+('doj','DOJ Application','Apply to support legal roleplay and the justice system.', '[{"key":"motivation","label":"Why do you want to join the Department of Justice?","type":"textarea","required":true},{"key":"experience","label":"Describe any previous legal or courtroom roleplay experience.","type":"textarea","required":true},{"key":"availability","label":"What is your usual availability?","type":"text","required":true},{"key":"scenario","label":"How would you approach a case where the evidence presented is incomplete or conflicting?","type":"textarea","required":true}]'::jsonb,true)
+on conflict(department) do nothing;
 
 create table if not exists public.valley_applications (
   id uuid primary key default gen_random_uuid(),
   applicant_id uuid not null references auth.users(id) on delete cascade,
-  application_type text not null check (application_type in ('staff','lspd','ems','doj')),
-  character_name text not null,
+  department text not null check(department in ('staff','lspd','ems','doj')),
   answers jsonb not null default '{}'::jsonb,
-  status text not null default 'pending' check (status in ('pending','approved','rejected','changes_requested')),
-  submitted_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  reviewed_at timestamptz,
+  status text not null default 'pending' check(status in ('pending','under_review','changes_requested','approved','denied')),
+  review_notes text,
   reviewed_by uuid references auth.users(id) on delete set null,
-  review_note text
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
-create index if not exists valley_applications_applicant_idx on public.valley_applications(applicant_id,submitted_at desc);
-create index if not exists valley_applications_queue_idx on public.valley_applications(application_type,status,submitted_at);
+create index if not exists valley_applications_applicant_idx on public.valley_applications(applicant_id,created_at desc);
+create index if not exists valley_applications_department_idx on public.valley_applications(department,status,created_at desc);
 
 create table if not exists public.valley_application_audit (
   id bigint generated always as identity primary key,
@@ -81,165 +76,201 @@ create table if not exists public.valley_application_audit (
   details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
-
-create table if not exists public.valley_role_audit (
+create table if not exists public.valley_application_role_audit (
   id bigint generated always as identity primary key,
   actor_user_id uuid references auth.users(id) on delete set null,
   target_user_id uuid references auth.users(id) on delete set null,
-  role_code text not null,
+  scope text not null,
+  role_key text not null,
   action text not null check(action in ('assigned','removed')),
   created_at timestamptz not null default now()
 );
 
-create or replace function public.valley_is_super_owner()
+create or replace function public.valley_is_application_super_owner()
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
-  select auth.uid() = '193a2e89-2bbb-496d-851d-1bb50aeb0b62'::uuid;
+  select auth.uid()='193a2e89-2bbb-496d-851d-1bb50aeb0b62'::uuid;
 $$;
 
-create or replace function public.valley_user_has_role(p_role text)
+create or replace function public.valley_has_application_role(p_scope text,p_role_key text)
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
-  select public.valley_is_super_owner() or exists(
-    select 1 from public.valley_member_roles r where r.user_id=auth.uid() and r.role_code=p_role
+  select public.valley_is_application_super_owner() or exists(
+    select 1 from public.valley_application_roles r
+    where r.user_id=auth.uid() and r.scope=p_scope and r.role_key=p_role_key
   );
 $$;
 
-create or replace function public.valley_can_review_application(p_type text)
+create or replace function public.valley_can_review_department(p_department text)
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
   select case
-    when public.valley_is_super_owner() then true
-    when p_type='staff' then (
-      public.valley_user_has_role('staff:owner') or
-      public.valley_user_has_role('staff:director') or
-      public.valley_user_has_role('staff:assistant_director') or
-      public.valley_user_has_role('staff:management')
-    )
-    when p_type='lspd' then public.valley_user_has_role('lspd:department_head') or public.valley_user_has_role('lspd:command')
-    when p_type='ems' then public.valley_user_has_role('ems:department_head') or public.valley_user_has_role('ems:command')
-    when p_type='doj' then public.valley_user_has_role('doj:department_head') or public.valley_user_has_role('doj:command')
+    when public.valley_is_application_super_owner() then true
+    when p_department='staff' then
+      public.valley_has_application_role('staff','staff_owner') or
+      public.valley_has_application_role('staff','director') or
+      public.valley_has_application_role('staff','assistant_director') or
+      public.valley_has_application_role('staff','management')
+    when p_department in ('lspd','ems','doj') then
+      public.valley_has_application_role(p_department,'department_head') or
+      public.valley_has_application_role(p_department,'command_team')
     else false end;
 $$;
 
-create or replace function public.valley_application_submit(p_type text,p_character_name text,p_answers jsonb)
+create or replace function public.valley_get_my_roles()
+returns table(scope text,role_key text)
+language plpgsql stable security definer set search_path=public,pg_temp as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  if public.valley_is_application_super_owner() then
+    return query select 'system'::text,'super_owner'::text;
+  end if;
+  return query select r.scope,r.role_key from public.valley_application_roles r where r.user_id=auth.uid();
+end;
+$$;
+
+create or replace function public.valley_submit_application(p_department text,p_answers jsonb)
 returns uuid language plpgsql security definer set search_path=public,pg_temp as $$
-declare v_id uuid; v_name text := trim(coalesce(p_character_name,''));
+declare v_id uuid;
 begin
   if auth.uid() is null then raise exception 'Please sign in with Discord first'; end if;
-  if p_type not in ('staff','lspd','ems','doj') then raise exception 'Invalid application type'; end if;
-  if char_length(v_name) not between 2 and 80 then raise exception 'Enter a valid in-city character name'; end if;
+  if p_department not in ('staff','lspd','ems','doj') then raise exception 'Invalid department'; end if;
   if p_answers is null or jsonb_typeof(p_answers)<>'object' or length(p_answers::text)>20000 then raise exception 'Invalid application answers'; end if;
-  if exists(select 1 from public.valley_applications where applicant_id=auth.uid() and application_type=p_type and status in ('pending','changes_requested')) then
-    raise exception 'You already have an application of this type awaiting review';
+  if not exists(select 1 from public.valley_application_forms f where f.department=p_department and f.is_open) then raise exception 'Applications for this department are currently closed'; end if;
+  if exists(select 1 from public.valley_applications a where a.applicant_id=auth.uid() and a.department=p_department and a.status in ('pending','under_review','changes_requested')) then
+    raise exception 'You already have an active application for this department';
   end if;
-  insert into public.valley_applications(applicant_id,application_type,character_name,answers)
-  values(auth.uid(),p_type,v_name,p_answers) returning id into v_id;
+  insert into public.valley_applications(applicant_id,department,answers) values(auth.uid(),p_department,p_answers) returning id into v_id;
   insert into public.valley_application_audit(application_id,actor_user_id,action,details)
-  values(v_id,auth.uid(),'submitted',jsonb_build_object('application_type',p_type));
+    values(v_id,auth.uid(),'submitted',jsonb_build_object('department',p_department));
   return v_id;
 end;
 $$;
 
-create or replace function public.valley_application_my_submissions()
-returns table(id uuid,application_type text,character_name text,answers jsonb,status text,submitted_at timestamptz,updated_at timestamptz,review_note text)
-language sql stable security definer set search_path=public,pg_temp as $$
-  select a.id,a.application_type,a.character_name,a.answers,a.status,a.submitted_at,a.updated_at,
-    case when a.status in ('rejected','changes_requested','approved') then a.review_note else null end
-  from public.valley_applications a where a.applicant_id=auth.uid()
-  order by a.submitted_at desc;
-$$;
-
-create or replace function public.valley_application_review_queue(p_type text default null)
-returns table(id uuid,applicant_id uuid,discord_name text,character_name text,application_type text,answers jsonb,status text,submitted_at timestamptz,review_note text)
-language plpgsql stable security definer set search_path=public,pg_temp as $$
-begin
-  if auth.uid() is null then raise exception 'Authentication required'; end if;
-  if p_type is not null and p_type not in ('staff','lspd','ems','doj') then raise exception 'Invalid application type'; end if;
-  return query
-  select a.id,a.applicant_id,coalesce(p.display_name,'Discord member'),a.character_name,a.application_type,a.answers,a.status,a.submitted_at,a.review_note
-  from public.valley_applications a
-  left join public.profiles p on p.id=a.applicant_id
-  where (p_type is null or a.application_type=p_type)
-    and public.valley_can_review_application(a.application_type)
-  order by case when a.status='pending' then 0 when a.status='changes_requested' then 1 else 2 end,a.submitted_at asc;
-end;
-$$;
-
-create or replace function public.valley_application_review(p_application_id uuid,p_decision text,p_note text default '')
+create or replace function public.valley_review_application(p_application_id uuid,p_status text,p_notes text default '')
 returns boolean language plpgsql security definer set search_path=public,pg_temp as $$
-declare v_type text; v_old text; v_note text:=left(trim(coalesce(p_note,'')),2000);
+declare v_department text; v_old_status text; v_notes text:=left(trim(coalesce(p_notes,'')),2000);
 begin
   if auth.uid() is null then raise exception 'Authentication required'; end if;
-  if p_decision not in ('approved','rejected','changes_requested') then raise exception 'Invalid review decision'; end if;
-  select application_type,status into v_type,v_old from public.valley_applications where id=p_application_id for update;
+  if p_status not in ('under_review','changes_requested','approved','denied') then raise exception 'Invalid review status'; end if;
+  select a.department,a.status into v_department,v_old_status from public.valley_applications a where a.id=p_application_id for update;
   if not found then raise exception 'Application not found'; end if;
-  if not public.valley_can_review_application(v_type) then raise exception 'You cannot review this department application'; end if;
-  if v_old not in ('pending','changes_requested') then raise exception 'This application has already been finalized'; end if;
-  update public.valley_applications set status=p_decision,reviewed_at=now(),reviewed_by=auth.uid(),review_note=nullif(v_note,''),updated_at=now()
-    where id=p_application_id;
+  if not public.valley_can_review_department(v_department) then raise exception 'You are not authorized to review this department'; end if;
+  if v_old_status in ('approved','denied') then raise exception 'This application has already been finalized'; end if;
+  update public.valley_applications set status=p_status,review_notes=nullif(v_notes,''),reviewed_by=auth.uid(),reviewed_at=now(),updated_at=now() where id=p_application_id;
   insert into public.valley_application_audit(application_id,actor_user_id,action,details)
-    values(p_application_id,auth.uid(),'reviewed',jsonb_build_object('decision',p_decision,'note',v_note));
+    values(p_application_id,auth.uid(),'review_updated',jsonb_build_object('status',p_status,'notes',v_notes));
   return true;
 end;
 $$;
 
--- Super Owner-only role assignment; supports any number of roles per member.
-create or replace function public.valley_roles_manage(p_target_user_id uuid,p_role_code text,p_action text)
+create or replace function public.valley_save_application_form(
+  p_department text,p_title text,p_description text,p_questions jsonb,p_is_open boolean
+)
 returns boolean language plpgsql security definer set search_path=public,pg_temp as $$
 begin
-  if not public.valley_is_super_owner() then raise exception 'Only the Super Owner can assign or remove roles'; end if;
-  if p_target_user_id is null or p_target_user_id='193a2e89-2bbb-496d-851d-1bb50aeb0b62'::uuid then
-    raise exception 'That account is protected';
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  if not (public.valley_is_application_super_owner() or
+    public.valley_has_application_role('staff','staff_owner') or
+    public.valley_has_application_role('staff','director') or
+    public.valley_has_application_role('staff','assistant_director') or
+    public.valley_has_application_role('staff','management')) then
+    raise exception 'Only Management and higher can edit application forms';
   end if;
-  if not exists(select 1 from public.valley_role_catalog where role_code=p_role_code and active) then raise exception 'Unknown role'; end if;
-  if p_action='assign' then
-    insert into public.valley_member_roles(user_id,role_code,assigned_by) values(p_target_user_id,p_role_code,auth.uid())
-    on conflict(user_id,role_code) do nothing;
-  elsif p_action='remove' then
-    delete from public.valley_member_roles where user_id=p_target_user_id and role_code=p_role_code;
-  else raise exception 'Invalid role action'; end if;
-  insert into public.valley_role_audit(actor_user_id,target_user_id,role_code,action)
-  values(auth.uid(),p_target_user_id,p_role_code,case when p_action='assign' then 'assigned' else 'removed' end);
+  if p_department not in ('staff','lspd','ems','doj') then raise exception 'Invalid department'; end if;
+  if char_length(trim(coalesce(p_title,''))) not between 3 and 120 then raise exception 'Form title must be 3 to 120 characters'; end if;
+  if jsonb_typeof(p_questions)<>'array' or jsonb_array_length(p_questions)>30 then raise exception 'Invalid form questions'; end if;
+  update public.valley_application_forms set title=trim(p_title),description=left(trim(coalesce(p_description,'')),2000),questions=p_questions,is_open=coalesce(p_is_open,false),updated_by=auth.uid(),updated_at=now()
+  where department=p_department;
+  if not found then raise exception 'Application form not found'; end if;
   return true;
 end;
 $$;
 
-create or replace function public.valley_roles_list_for_super_owner(p_query text default '')
-returns table(user_id uuid,display_name text,character_name text,role_code text,role_label text,department text)
+create or replace function public.valley_search_profiles(p_query text)
+returns table(id uuid,display_name text,character_name text,roles text[])
 language plpgsql stable security definer set search_path=public,pg_temp as $$
+declare v_query text:=trim(coalesce(p_query,''));
 begin
-  if not public.valley_is_super_owner() then raise exception 'Super Owner access required'; end if;
+  if not public.valley_is_application_super_owner() then raise exception 'Only the Super Owner can search members for role management'; end if;
   return query
-  select p.id,coalesce(p.display_name,'Discord member'),coalesce(p.character_name,''),r.role_code,c.label,c.department
-  from public.profiles p
-  left join public.valley_member_roles r on r.user_id=p.id
-  left join public.valley_role_catalog c on c.role_code=r.role_code
-  where coalesce(p.display_name,'') ilike '%'||trim(coalesce(p_query,''))||'%'
-     or coalesce(p.character_name,'') ilike '%'||trim(coalesce(p_query,''))||'%'
-  order by p.display_name,c.sort_order limit 100;
+  select p.id,coalesce(p.display_name,'Discord member'),coalesce(p.character_name,''),
+    coalesce(array_agg(r.scope||':'||r.role_key) filter(where r.role_key is not null),'{}'::text[])
+  from public.profiles p left join public.valley_application_roles r on r.user_id=p.id
+  where p.id<>'193a2e89-2bbb-496d-851d-1bb50aeb0b62'::uuid
+    and (v_query='' or coalesce(p.display_name,'') ilike '%'||v_query||'%' or coalesce(p.character_name,'') ilike '%'||v_query||'%')
+  group by p.id,p.display_name,p.character_name order by p.display_name limit 50;
 end;
 $$;
 
-alter table public.valley_role_catalog enable row level security;
-alter table public.valley_member_roles enable row level security;
+create or replace function public.valley_list_member_roles(p_user_id uuid)
+returns table(scope text,role_key text)
+language plpgsql stable security definer set search_path=public,pg_temp as $$
+begin
+  if not public.valley_is_application_super_owner() then raise exception 'Only the Super Owner can view member roles'; end if;
+  return query select r.scope,r.role_key from public.valley_application_roles r where r.user_id=p_user_id order by r.scope,r.role_key;
+end;
+$$;
+
+create or replace function public.valley_assign_application_role(p_user_id uuid,p_scope text,p_role_key text)
+returns boolean language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  if not public.valley_is_application_super_owner() then raise exception 'Only the Super Owner can assign roles'; end if;
+  if p_user_id is null or p_user_id='193a2e89-2bbb-496d-851d-1bb50aeb0b62'::uuid then raise exception 'That account is protected'; end if;
+  if not (
+    (p_scope='staff' and p_role_key in ('staff_owner','director','assistant_director','management','senior_admin','admin')) or
+    (p_scope in ('lspd','ems','doj') and p_role_key in ('department_head','command_team','application_reviewer','member'))
+  ) then raise exception 'Invalid role'; end if;
+  insert into public.valley_application_roles(user_id,scope,role_key,assigned_by) values(p_user_id,p_scope,p_role_key,auth.uid()) on conflict do nothing;
+  insert into public.valley_application_role_audit(actor_user_id,target_user_id,scope,role_key,action) values(auth.uid(),p_user_id,p_scope,p_role_key,'assigned');
+  return true;
+end;
+$$;
+
+create or replace function public.valley_remove_application_role(p_user_id uuid,p_scope text,p_role_key text)
+returns boolean language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  if not public.valley_is_application_super_owner() then raise exception 'Only the Super Owner can remove roles'; end if;
+  if p_user_id is null or p_user_id='193a2e89-2bbb-496d-851d-1bb50aeb0b62'::uuid then raise exception 'That account is protected'; end if;
+  delete from public.valley_application_roles where user_id=p_user_id and scope=p_scope and role_key=p_role_key;
+  insert into public.valley_application_role_audit(actor_user_id,target_user_id,scope,role_key,action) values(auth.uid(),p_user_id,p_scope,p_role_key,'removed');
+  return true;
+end;
+$$;
+
+alter table public.valley_application_roles enable row level security;
+alter table public.valley_application_forms enable row level security;
 alter table public.valley_applications enable row level security;
 alter table public.valley_application_audit enable row level security;
-alter table public.valley_role_audit enable row level security;
+alter table public.valley_application_role_audit enable row level security;
 
-revoke all on public.valley_role_catalog,public.valley_member_roles,public.valley_applications,public.valley_application_audit,public.valley_role_audit from anon,authenticated;
-revoke all on function public.valley_is_super_owner() from public,anon;
-revoke all on function public.valley_user_has_role(text) from public,anon;
-revoke all on function public.valley_can_review_application(text) from public,anon;
-revoke all on function public.valley_application_submit(text,text,jsonb) from public,anon;
-revoke all on function public.valley_application_my_submissions() from public,anon;
-revoke all on function public.valley_application_review_queue(text) from public,anon;
-revoke all on function public.valley_application_review(uuid,text,text) from public,anon;
-revoke all on function public.valley_roles_manage(uuid,text,text) from public,anon;
-revoke all on function public.valley_roles_list_for_super_owner(text) from public,anon;
+drop policy if exists valley_forms_read_authenticated on public.valley_application_forms;
+create policy valley_forms_read_authenticated on public.valley_application_forms for select to authenticated using (true);
+drop policy if exists valley_apps_read_own_or_reviewer on public.valley_applications;
+create policy valley_apps_read_own_or_reviewer on public.valley_applications for select to authenticated
+using (applicant_id=auth.uid() or public.valley_can_review_department(department));
 
-grant execute on function public.valley_application_submit(text,text,jsonb) to authenticated;
-grant execute on function public.valley_application_my_submissions() to authenticated;
-grant execute on function public.valley_application_review_queue(text) to authenticated;
-grant execute on function public.valley_application_review(uuid,text,text) to authenticated;
-grant execute on function public.valley_roles_manage(uuid,text,text) to authenticated;
-grant execute on function public.valley_roles_list_for_super_owner(text) to authenticated;
+revoke all on public.valley_application_roles,public.valley_application_audit,public.valley_application_role_audit from anon,authenticated;
+revoke insert,update,delete on public.valley_application_forms from anon,authenticated;
+revoke insert,update,delete on public.valley_applications from anon,authenticated;
+grant select on public.valley_application_forms,public.valley_applications to authenticated;
+
+revoke all on function public.valley_is_application_super_owner() from public,anon;
+revoke all on function public.valley_has_application_role(text,text) from public,anon;
+revoke all on function public.valley_can_review_department(text) from public,anon;
+revoke all on function public.valley_get_my_roles() from public,anon;
+revoke all on function public.valley_submit_application(text,jsonb) from public,anon;
+revoke all on function public.valley_review_application(uuid,text,text) from public,anon;
+revoke all on function public.valley_save_application_form(text,text,text,jsonb,boolean) from public,anon;
+revoke all on function public.valley_search_profiles(text) from public,anon;
+revoke all on function public.valley_list_member_roles(uuid) from public,anon;
+revoke all on function public.valley_assign_application_role(uuid,text,text) from public,anon;
+revoke all on function public.valley_remove_application_role(uuid,text,text) from public,anon;
+
+grant execute on function public.valley_get_my_roles() to authenticated;
+grant execute on function public.valley_submit_application(text,jsonb) to authenticated;
+grant execute on function public.valley_review_application(uuid,text,text) to authenticated;
+grant execute on function public.valley_save_application_form(text,text,text,jsonb,boolean) to authenticated;
+grant execute on function public.valley_search_profiles(text) to authenticated;
+grant execute on function public.valley_list_member_roles(uuid) to authenticated;
+grant execute on function public.valley_assign_application_role(uuid,text,text) to authenticated;
+grant execute on function public.valley_remove_application_role(uuid,text,text) to authenticated;
 
 commit;
