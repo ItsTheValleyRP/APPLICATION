@@ -151,6 +151,8 @@ begin
 end;
 $$;
 
+drop function if exists public.valley_review_application(uuid,text,text);
+
 create or replace function public.valley_review_application(p_application_id uuid,p_status text,p_notes text default '')
 returns boolean language plpgsql security definer set search_path=public,pg_temp as $$
 declare v_department text; v_old_status text; v_notes text:=left(trim(coalesce(p_notes,'')),2000);
