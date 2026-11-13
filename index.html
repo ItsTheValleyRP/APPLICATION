@@ -28,12 +28,13 @@ main{max-width:1050px;margin:42px auto;padding:0 22px}.hero{padding:38px 0 25px}
 <div id="message" class="notice hidden"></div>
 <section id="signed-out" class="panel"><h2>Welcome to The Valley</h2><p class="muted">Sign in with Discord to submit applications and view your application history.</p><button id="hero-login">Continue with Discord</button></section>
 <section id="portal" class="panel hidden">
-<nav class="tabs" id="tabs"><button class="active" data-tab="apply">Applications</button><button data-tab="mine">My submissions</button><button data-tab="review" id="review-tab" class="hidden">Review queue</button><button data-tab="roles" id="roles-tab" class="hidden">Role access</button><button data-tab="forms" id="forms-tab" class="hidden">Form settings</button></nav>
+<nav class="tabs" id="tabs"><button class="active" data-tab="apply">Applications</button><button data-tab="mine">My submissions</button><button data-tab="review" id="review-tab" class="hidden">Review queue</button><button data-tab="roles" id="roles-tab" class="hidden">Role access</button><button data-tab="forms" id="forms-tab" class="hidden">Form settings</button><button data-tab="website" id="website-tab" class="hidden">Website editor</button></nav>
 <div id="tab-apply"><div class="sectionhead"><div><h2>Choose an application</h2><p class="muted">Select the department you'd like to apply to.</p></div></div><div class="grid" id="departments"></div><div id="application-form" class="hidden"></div></div>
 <div id="tab-mine" class="hidden"><h2>My submissions</h2><div id="my-applications"></div></div>
 <div id="tab-review" class="hidden"><div class="sectionhead"><div><h2>Review queue</h2><p class="muted">Applications you are authorized to review.</p></div><button class="secondary" id="refresh-review">Refresh</button></div><div id="review-list"></div></div>
 <div id="tab-roles" class="hidden"><h2>Role access</h2><p class="muted">Assign multiple staff and department roles to the same Discord account.</p><div class="field"><label>Find a member by display name or character name</label><input id="member-search" placeholder="Search profiles..."></div><button id="search-member">Search members</button><div id="member-results"></div></div>
-<div id="tab-forms" class="hidden"><h2>Application form settings</h2><p class="muted">Management and above can edit the questions and open/close applications. Department heads currently review submissions, not edit forms.</p><div class="field"><label>Department</label><select id="form-department"><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select></div><div class="field"><label>Form title</label><input id="form-title"></div><div class="field"><label>Description</label><textarea id="form-description"></textarea></div><div class="field"><label>Questions (one per line, format: key | Question label | text or textarea)</label><textarea id="form-questions"></textarea></div><label><input type="checkbox" id="form-open" checked> Applications are open</label><div class="actions"><button id="save-form">Save form settings</button></div></div>
+<div id="tab-forms" class="hidden"><h2>Application form settings</h2><p class="muted">Management and above can edit the questions and open/close applications. Department heads currently review submissions, not edit forms.</p><div class="field"><label>Department</label><select id="form-department"><option value="staff">Staff</option><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select></div><div class="field"><label>Form title</label><input id="form-title"></div><div class="field"><label>Description</label><textarea id="form-description"></textarea></div><div class="field"><label>Questions (one per line, format: key | Question label | text or textarea)</label><textarea id="form-questions"></textarea></div><label><input type="checkbox" id="form-open" checked> Applications are open</label><div class="actions"><button id="save-form">Save form settings</button></div></div>
+<div id="tab-website" class="hidden"><h2>Department website editor</h2><p class="muted">Edit the public hero content and accent color for each department website. Changes are saved centrally and appear on the matching website.</p><div class="field"><label>Department website</label><select id="website-department"><option value="staff">Staff</option><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select></div><div class="field"><label>Eyebrow text</label><input id="web-eyebrow" maxlength="120"></div><div class="field"><label>Headline — first line</label><input id="web-title1" maxlength="100"></div><div class="field"><label>Headline — highlighted line</label><input id="web-title2" maxlength="100"></div><div class="field"><label>Hero description</label><textarea id="web-description" maxlength="700"></textarea></div><div class="field"><label>Artwork label</label><input id="web-art-label" maxlength="80"></div><div class="field"><label>Artwork slogan</label><input id="web-art-title" maxlength="180"></div><div class="field"><label>Footer text</label><input id="web-art-foot" maxlength="100"></div><div class="field"><label>Accent color</label><input id="web-accent" type="color" value="#76a9ff"></div><div class="actions"><button id="save-website">Save website changes</button></div><p class="small">Only the Super Owner and that department’s Department Chief / Department Command can save changes.</p></div>
 </section>
 <footer class="small" style="text-align:center;padding:25px 0 45px">THE VALLEY ROLEPLAY · APPLICATION PORTAL</footer>
 </main>
@@ -49,9 +50,11 @@ function msg(text,error=false){$('message').textContent=text;$('message').classN
 function clearMsg(){$('message').classList.add('hidden')}
 function has(scope,role){return myRoles.some(r=>r.scope===scope&&r.role_key===role)||myRoles.some(r=>r.scope==='system'&&r.role_key==='super_owner')}
 function isSuper(){return has('system','super_owner')}
-function canReview(dept){if(!['lspd','ems','doj'].includes(dept))return false;if(isSuper())return true;return ['department_head','command_team','application_reviewer'].some(r=>has(dept,r))}
+function canReview(dept){if(!['staff','lspd','ems','doj'].includes(dept))return false;if(isSuper())return true;if(dept==='staff')return ['staff_owner','director','assistant_director','management','department_chief','department_command'].some(r=>has('staff',r));return ['department_head','command_team','application_reviewer','department_chief','department_command'].some(r=>has(dept,r))}
 function canEditForms(){return isSuper()||['staff_owner','director','assistant_director','management'].some(r=>has('staff',r))}
-function tab(name){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));['apply','mine','review','roles','forms'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='mine')loadMine();if(name==='review')loadReview();if(name==='forms')loadFormEditor()}
+function canEditWebsite(dept){if(isSuper())return true;if(dept==='staff')return ['department_chief','department_command','staff_owner','director','assistant_director','management'].some(r=>has('staff',r));return ['department_chief','department_command','department_head','command_team'].some(r=>has(dept,r))}
+function canEditAnyWebsite(){return isSuper()||['staff','lspd','ems','doj'].some(canEditWebsite)}
+function tab(name){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));['apply','mine','review','roles','forms','website'].forEach(n=>$('tab-'+n).classList.toggle('hidden',n!==name));if(name==='mine')loadMine();if(name==='review')loadReview();if(name==='forms')loadFormEditor();if(name==='website')loadWebsiteEditor()}
 async function refresh(){
  const {data:{session}}=await sb.auth.getSession();currentUser=session?.user||null;
  $('signed-out').classList.toggle('hidden',!!currentUser);$('portal').classList.toggle('hidden',!currentUser);
@@ -59,8 +62,8 @@ async function refresh(){
  $('user-label').textContent=currentUser?(currentUser.user_metadata?.full_name||currentUser.user_metadata?.name||currentUser.email||'Signed in'):'Not signed in';
  if(!currentUser)return;
  const {data:roles,error}=await sb.rpc('valley_portal_get_my_roles');if(error){msg(error.message,true);return}myRoles=roles||[];
- $('review-tab').classList.toggle('hidden',!['lspd','ems','doj'].some(canReview));
- $('roles-tab').classList.toggle('hidden',!isSuper());$('forms-tab').classList.toggle('hidden',!canEditForms());
+ $('review-tab').classList.toggle('hidden',!['staff','lspd','ems','doj'].some(canReview));
+ $('roles-tab').classList.toggle('hidden',!isSuper());$('forms-tab').classList.toggle('hidden',!canEditForms());$('website-tab').classList.toggle('hidden',!canEditAnyWebsite());
  await loadForms();await loadMine();
 }
 async function login(){const {error}=await sb.auth.signInWithOAuth({provider:'discord',options:{redirectTo:location.href.split('#')[0]}});if(error)msg(error.message,true)}
@@ -70,8 +73,8 @@ document.querySelectorAll('#tabs button').forEach(b=>b.addEventListener('click',
 sb.auth.onAuthStateChange(()=>setTimeout(refresh,0));
 async function loadForms(){const {data,error}=await sb.from('valley_application_forms').select('*');if(error){msg(error.message,true);return}forms=Object.fromEntries((data||[]).map(f=>[f.department,f]));renderDepartments()}
 function renderDepartments(){
- const desc={lspd:'Serve the city through law enforcement and public safety.',ems:'Help keep the city safe through emergency medical services.',doj:'Support the justice system and uphold fair roleplay.'};
- $('departments').innerHTML=['lspd','ems','doj'].map(d=>{const f=forms[d]||{};return '<article class="dept"><h3>'+title(d)+'</h3><p>'+esc(f.description||desc[d])+'</p><button '+(!f.is_open?'disabled':'')+' data-dept="'+d+'">'+(f.is_open?'Start application':'Applications closed')+'</button></article>'}).join('');
+ const desc={staff:'Help lead and support the community behind The Valley.',lspd:'Serve the city through law enforcement and public safety.',ems:'Help keep the city safe through emergency medical services.',doj:'Support the justice system and uphold fair roleplay.'};
+ $('departments').innerHTML=['staff','lspd','ems','doj'].map(d=>{const f=forms[d]||{};return '<article class="dept"><h3>'+title(d)+'</h3><p>'+esc(f.description||desc[d])+'</p><button '+(!f.is_open?'disabled':'')+' data-dept="'+d+'">'+(f.is_open?'Start application':'Applications closed')+'</button></article>'}).join('');
  document.querySelectorAll('[data-dept]').forEach(b=>b.onclick=()=>showApplication(b.dataset.dept));
 }
 async function showApplication(dept){
@@ -101,12 +104,51 @@ $('search-member').onclick=async()=>{
  if(!isSuper())return;const q=$('member-search').value.trim();if(!q){msg('Enter a name to search.',true);return}
  const {data,error}=await sb.rpc('valley_portal_search_profiles',{p_query:q});if(error){msg(error.message,true);return}
  $('member-results').innerHTML=(data||[]).length?(data||[]).map(p=>'<article class="card"><strong>'+esc(p.display_name||p.character_name||'Member')+'</strong><div class="small">'+esc(p.character_name||'')+' · '+esc(p.id)+'</div><div class="actions"><select id="scope-'+p.id+'"><option value="staff">Staff</option><option value="lspd">LSPD</option><option value="ems">EMS</option><option value="doj">DOJ</option></select><select id="role-'+p.id+'"></select><button data-assign="'+p.id+'">Assign role</button></div><div class="small">Existing roles: '+esc((p.roles||[]).join(', ')||'None')+'</div></article>').join(''):'<div class="empty">No matching profiles found.</div>';
- (data||[]).forEach(async p=>{const s=$('scope-'+p.id),r=$('role-'+p.id);function options(){r.innerHTML=(s.value==='staff'?[['staff_owner','Staff Owner'],['director','Director'],['assistant_director','Assistant Director'],['management','Management'],['senior_admin','Senior Admin'],['admin','Admin']]:[['department_head','Department Head'],['command_team','Command Team'],['application_reviewer','Application Reviewer'],['member','Member']]).map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')}s.onchange=options;options();const {data:roles}=await sb.rpc('valley_portal_list_member_roles',{p_user_id:p.id});const holder=document.createElement('div');holder.className='small';holder.innerHTML='<b>Assigned roles:</b> '+((roles||[]).length?(roles||[]).map(x=>esc(x.scope+' / '+x.role_key.replaceAll('_',' '))+' <button class="danger" style="padding:3px 7px;font-size:11px" data-remove-user="'+p.id+'" data-remove-scope="'+x.scope+'" data-remove-role="'+x.role_key+'">Remove</button>').join(' · '):'None');$('member-results').querySelector('[data-assign="'+p.id+'"]').closest('.card').appendChild(holder);holder.querySelectorAll('[data-remove-user]').forEach(btn=>btn.onclick=async()=>{const {error}=await sb.rpc('valley_portal_remove_application_role',{p_user_id:btn.dataset.removeUser,p_scope:btn.dataset.removeScope,p_role_key:btn.dataset.removeRole});if(error){msg(error.message,true);return}msg('Role removed and logged.');$('search-member').click()})});
+ (data||[]).forEach(async p=>{const s=$('scope-'+p.id),r=$('role-'+p.id);function options(){r.innerHTML=(s.value==='staff'?[['department_chief','Staff Department Chief'],['department_command','Staff Department Command'],['staff_owner','Staff Owner'],['director','Director'],['assistant_director','Assistant Director'],['management','Management'],['senior_admin','Senior Admin'],['admin','Admin']]:[['department_chief','Department Chief'],['department_command','Department Command'],['department_head','Department Head (legacy)'],['command_team','Command Team (legacy)'],['application_reviewer','Application Reviewer'],['member','Member']]).map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')}s.onchange=options;options();const {data:roles}=await sb.rpc('valley_portal_list_member_roles',{p_user_id:p.id});const holder=document.createElement('div');holder.className='small';holder.innerHTML='<b>Assigned roles:</b> '+((roles||[]).length?(roles||[]).map(x=>esc(x.scope+' / '+x.role_key.replaceAll('_',' '))+' <button class="danger" style="padding:3px 7px;font-size:11px" data-remove-user="'+p.id+'" data-remove-scope="'+x.scope+'" data-remove-role="'+x.role_key+'">Remove</button>').join(' · '):'None');$('member-results').querySelector('[data-assign="'+p.id+'"]').closest('.card').appendChild(holder);holder.querySelectorAll('[data-remove-user]').forEach(btn=>btn.onclick=async()=>{const {error}=await sb.rpc('valley_portal_remove_application_role',{p_user_id:btn.dataset.removeUser,p_scope:btn.dataset.removeScope,p_role_key:btn.dataset.removeRole});if(error){msg(error.message,true);return}msg('Role removed and logged.');$('search-member').click()})});
  document.querySelectorAll('[data-assign]').forEach(b=>b.onclick=async()=>{const id=b.dataset.assign;const {error}=await sb.rpc('valley_portal_assign_application_role',{p_user_id:id,p_scope:$('scope-'+id).value,p_role_key:$('role-'+id).value});if(error){msg(error.message,true);return}msg('Role assigned and logged.');$('search-member').click()});
 };
 async function loadFormEditor(){const dept=$('form-department').value;const f=forms[dept];if(!f)return;$('form-title').value=f.title;$('form-description').value=f.description;$('form-open').checked=f.is_open;$('form-questions').value=(f.questions||[]).map(q=>[q.key,q.label,q.type].join(' | ')).join('\n')}
 $('form-department').onchange=loadFormEditor;
 $('save-form').onclick=async()=>{const dept=$('form-department').value;const questions=$('form-questions').value.split('\n').map(s=>s.trim()).filter(Boolean).map(line=>{const [key,label,type='text']=line.split('|').map(s=>s.trim());return {key,label,type:type==='textarea'?'textarea':type==='checkbox'?'checkbox':'text',required:true}});const {error}=await sb.rpc('valley_portal_save_application_form',{p_department:dept,p_title:$('form-title').value,p_description:$('form-description').value,p_questions:questions,p_is_open:$('form-open').checked});if(error){msg(error.message,true);return}msg('Application form saved.');await loadForms();loadFormEditor()};
+
+function websitePayload(){return {
+ hero_eyebrow:$('web-eyebrow').value.trim(),
+ hero_title_line1:$('web-title1').value.trim(),
+ hero_title_line2:$('web-title2').value.trim(),
+ hero_description:$('web-description').value.trim(),
+ art_label:$('web-art-label').value.trim(),
+ art_title:$('web-art-title').value.trim(),
+ art_foot:$('web-art-foot').value.trim(),
+ accent_color:$('web-accent').value
+}}
+async function loadWebsiteEditor(){
+ const dept=$('website-department').value;
+ const select=$('website-department');
+ [...select.options].forEach(o=>o.disabled=!canEditWebsite(o.value));
+ if(!canEditWebsite(dept)){const first=[...select.options].find(o=>canEditWebsite(o.value));if(first){select.value=first.value;return loadWebsiteEditor()}return}
+ const {data,error}=await sb.rpc('valley_public_department_website_settings',{p_department:dept});
+ if(error){msg(error.message,true);return}
+ const c=data||{};
+ $('web-eyebrow').value=c.hero_eyebrow||'';
+ $('web-title1').value=c.hero_title_line1||'';
+ $('web-title2').value=c.hero_title_line2||'';
+ $('web-description').value=c.hero_description||'';
+ $('web-art-label').value=c.art_label||'';
+ $('web-art-title').value=c.art_title||'';
+ $('web-art-foot').value=c.art_foot||'';
+ $('web-accent').value=c.accent_color||'#76a9ff';
+}
+$('website-department').onchange=loadWebsiteEditor;
+$('save-website').onclick=async()=>{
+ const dept=$('website-department').value;
+ if(!canEditWebsite(dept)){msg('You do not have permission to edit this department website.',true);return}
+ const button=$('save-website');button.disabled=true;
+ const {error}=await sb.rpc('valley_portal_save_department_website',{p_department:dept,p_content:websitePayload()});
+ button.disabled=false;
+ if(error){msg(error.message,true);return}
+ msg(title(dept)+' website settings saved. The public site will refresh its content automatically.');
+};
+
 refresh();
 </script>
 </body></html>
