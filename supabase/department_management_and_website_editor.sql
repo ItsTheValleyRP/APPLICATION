@@ -6,6 +6,8 @@ begin;
 
 -- Expand the existing role-key constraint without removing any current roles.
 alter table public.valley_application_roles
+  drop constraint if exists valley_application_roles_check;
+alter table public.valley_application_roles
   drop constraint if exists valley_application_roles_role_key_check;
 alter table public.valley_application_roles
   add constraint valley_application_roles_role_key_check
